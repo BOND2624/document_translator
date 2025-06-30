@@ -1,0 +1,12 @@
+crewai==0.41.1
+crewai-tools==0.4.26
+openai>=1.13.3,<2.0.0
+python-docx==1.1.0
+python-dotenv==1.0.0
+pydantic>=2.5.0
+langchain>=0.1.0
+langchain-openai>=0.0.5
+beautifulsoup4>=4.12.2
+lxml>=4.9.3
+colorama>=0.4.6
+rich>=13.7.0 
