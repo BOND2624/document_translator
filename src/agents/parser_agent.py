@@ -121,7 +121,11 @@ class DocumentParserTool(BaseTool):
                                 # Extract color if available
                                 if run.font.color and run.font.color.rgb:
                                     color = run.font.color.rgb
-                                    run_data["font_color"] = f"#{color.red:02x}{color.green:02x}{color.blue:02x}"
+                                    # RGBColor is tuple-like: access with [0], [1], [2]
+                                    try:
+                                        run_data["font_color"] = f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
+                                    except:
+                                        run_data["font_color"] = "Default"
                                 else:
                                     run_data["font_color"] = "Default"
                                     
@@ -280,18 +284,34 @@ class DocumentParserTool(BaseTool):
         
         # Define style-to-semantic mapping
         style_semantic_map = {
+            # Title styles
+            'Title': {'type': 'document_title', 'level': 0, 'translatable': True},
             'CustomTitle': {'type': 'document_title', 'level': 0, 'translatable': True},
-            'CustomH1': {'type': 'main_header', 'level': 1, 'translatable': True},
-            'CustomH2': {'type': 'sub_header', 'level': 2, 'translatable': True},
-            'CustomH3': {'type': 'sub_header', 'level': 3, 'translatable': True},
+            
+            # Header styles
             'Heading 1': {'type': 'main_header', 'level': 1, 'translatable': True},
             'Heading 2': {'type': 'sub_header', 'level': 2, 'translatable': True},
             'Heading 3': {'type': 'sub_header', 'level': 3, 'translatable': True},
+            'Heading 4': {'type': 'sub_header', 'level': 4, 'translatable': True},
+            'CustomH1': {'type': 'main_header', 'level': 1, 'translatable': True},
+            'CustomH2': {'type': 'sub_header', 'level': 2, 'translatable': True},
+            'CustomH3': {'type': 'sub_header', 'level': 3, 'translatable': True},
+            
+            # Body text styles
             'Normal': {'type': 'body_text', 'level': None, 'translatable': True},
-            'FixedContent': {'type': 'special_content', 'level': None, 'translatable': True},
+            'Body Text': {'type': 'body_text', 'level': None, 'translatable': True},
+            'No Spacing': {'type': 'body_text', 'level': None, 'translatable': True},
+            
+            # List styles
             'List Paragraph': {'type': 'list_item', 'level': None, 'translatable': True},
+            'List Bullet': {'type': 'list_item', 'level': None, 'translatable': True},
+            'List Number': {'type': 'list_item', 'level': None, 'translatable': True},
+            
+            # Special content styles
+            'FixedContent': {'type': 'special_content', 'level': None, 'translatable': True},
             'Quote': {'type': 'quote', 'level': None, 'translatable': True},
-            'Caption': {'type': 'caption', 'level': None, 'translatable': True}
+            'Caption': {'type': 'caption', 'level': None, 'translatable': True},
+            'Subtitle': {'type': 'special_content', 'level': None, 'translatable': True}
         }
         
         semantic_analysis = {

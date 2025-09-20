@@ -45,8 +45,7 @@ def get_target_language():
         '7': 'Japanese',
         '8': 'Korean',
         '9': 'Russian',
-        '10': 'Arabic',
-        '11': 'Custom'
+        '10': 'Custom'
     }
     
     print_separator("TARGET LANGUAGE SELECTION")
@@ -54,7 +53,7 @@ def get_target_language():
     print()
     
     for key, language in available_languages.items():
-        if key == '11':
+        if key == '10':
             print(f"   {key}. {language} (Enter your own language)")
         else:
             print(f"   {key}. {language}")
@@ -62,10 +61,10 @@ def get_target_language():
     print()
     while True:
         try:
-            choice = input("Enter your choice (1-11): ").strip()
+            choice = input("Enter your choice (1-10): ").strip()
             
             if choice in available_languages:
-                if choice == '11':
+                if choice == '10':
                     # Custom language input
                     custom_lang = input("Enter the target language name: ").strip()
                     if custom_lang:
@@ -79,7 +78,7 @@ def get_target_language():
                     print(f"✅ Selected target language: {selected_language}")
                     return selected_language
             else:
-                print("❌ Invalid choice. Please enter a number between 1-11.")
+                print("❌ Invalid choice. Please enter a number between 1-10.")
                 
         except KeyboardInterrupt:
             print("\n❌ Operation cancelled by user.")
@@ -163,7 +162,7 @@ def run_complete_pipeline():
     """Run the complete document translation pipeline"""
     
     print_separator("COMPLETE DOCUMENT TRANSLATION PIPELINE")
-    print("🎯 Target: blog_final_fixed99.docx → Multi-Language Translation")
+    print("🎯 Target: test_document_comprehensive.docx → Multi-Language Translation")
     print("🔄 Pipeline: Parser → Translation → Style → Output")
     
     # Get target language from user
@@ -173,14 +172,14 @@ def run_complete_pipeline():
         return None
     
     print_separator("PIPELINE CONFIGURATION")
-    print(f"📄 Input Document: blog_final_fixed99.docx")
+    print(f"📄 Input Document: test_document_comprehensive.docx")
     print(f"🌐 Source Language: English")
     print(f"🎯 Target Language: {target_language}")
     print(f"📋 Translation Style: Professional/Formal")
     print("🔄 Ready to start pipeline...")
     
     # Document to process
-    input_document = "blog_final_fixed99.docx"
+    input_document = "test_document_comprehensive.docx"
     
     if not os.path.exists(input_document):
         print(f"❌ Input document not found: {input_document}")

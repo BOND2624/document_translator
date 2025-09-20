@@ -1,6 +1,6 @@
 """
 Style Agent - Analyzes and adapts document formatting for target language
-Handles RTL/LTR considerations, font compatibility, and style consistency
+Handles font compatibility and style consistency for LTR languages
 """
 
 import json
@@ -17,6 +17,7 @@ from typing import ClassVar
 from langchain_openai import AzureChatOpenAI
 
 from ..utils.file_manager import DocumentFileManager
+from ..config import FontConfig
 
 
 @dataclass
@@ -34,9 +35,9 @@ class StyleProfile:
 
 @dataclass
 class LanguageStyleRules:
-    """Language-specific formatting rules"""
+    """Language-specific formatting rules for LTR languages"""
     language_code: str
-    writing_direction: str  # 'ltr' or 'rtl'
+    writing_direction: str  # Always 'ltr'
     preferred_fonts: List[str]
     text_alignment_default: str
     spacing_adjustments: Dict[str, float]
@@ -96,41 +97,59 @@ class DocumentStyleTool(BaseTool):
         )
     }
     
-    LANGUAGE_RULES: ClassVar[Dict[str, Dict[str, Any]]] = {
-        "spanish": {
-            "writing_direction": "ltr",
-            "preferred_fonts": ["Arial", "Calibri", "Times New Roman"],
+    def _get_language_style_rules(self, target_language: str) -> Dict[str, Any]:
+        """Get comprehensive language styling rules using FontConfig."""
+        language_info = FontConfig.get_language_info(target_language)
+        
+        return {
+            "writing_direction": "ltr",  # All languages are LTR
+            "preferred_fonts": language_info["font_stack"],
+            "primary_font": language_info["primary_font"],
             "text_alignment_default": "justify",
-            "spacing_adjustments": {"line_spacing": 1.0, "paragraph_spacing": 1.0}
-        },
-        "english": {
-            "writing_direction": "ltr", 
-            "preferred_fonts": ["Arial", "Calibri", "Times New Roman"],
-            "text_alignment_default": "justify",
-            "spacing_adjustments": {"line_spacing": 1.0, "paragraph_spacing": 1.0}
+            "header_alignment": "left",
+            "spacing_adjustments": {
+                "line_spacing": 1.0,
+                "paragraph_spacing": 1.0
+            }
         }
-    }
     
     def _apply_style_profile(self, 
                            element_type: str,
                            content_element: Dict[str, Any],
                            style_profile: StyleProfile,
                            language_rules: Dict[str, Any]) -> Dict[str, Any]:
-        """Apply style profile to a content element"""
+        """Apply style profile to a content element with language-specific fonts"""
         styled_element = content_element.copy()
         
         # Get base formatting from original
         original_formatting = styled_element.get("formatting", {})
         
+        # Determine alignment based on element type and original formatting
+        original_alignment = original_formatting.get("alignment", "left")
+        
+        if element_type == "document_title":
+            alignment = "center"  # Always center titles
+        elif element_type in ["main_header", "sub_header"]:
+            alignment = language_rules["header_alignment"]
+        elif original_alignment == "center":
+            # Preserve center alignment for elements that were originally centered
+            alignment = "center"
+        else:
+            alignment = language_rules["text_alignment_default"]
+        
         # Create new formatting based on style profile
         new_formatting = {
-            "alignment": style_profile.alignments.get(element_type, "left"),
+            "alignment": alignment,
             "spacing": style_profile.spacing.get(element_type, "6pt after"),
             "runs": []
         }
         
         # Determine if element should be bold (headers and titles)
         should_be_bold = element_type in ["document_title", "main_header", "sub_header"]
+        
+        # Get font stack for this language
+        font_stack = language_rules["preferred_fonts"]
+        primary_font = language_rules["primary_font"]
         
         # Process text runs
         if "runs" in original_formatting:
@@ -140,7 +159,8 @@ class DocumentStyleTool(BaseTool):
                     "bold": should_be_bold or run.get("bold", False),
                     "italic": run.get("italic", False),
                     "underline": run.get("underline", False),
-                    "font_name": language_rules["preferred_fonts"][0],
+                    "font_name": primary_font,
+                    "font_stack": font_stack,  # Include full font stack for fallbacks
                     "font_size": style_profile.font_sizes.get(element_type, "11pt"),
                     "font_color": style_profile.colors.get(element_type, "#000000")
                 }
@@ -152,7 +172,8 @@ class DocumentStyleTool(BaseTool):
                 "bold": should_be_bold,
                 "italic": False,
                 "underline": False,
-                "font_name": language_rules["preferred_fonts"][0],
+                "font_name": primary_font,
+                "font_stack": font_stack,
                 "font_size": style_profile.font_sizes.get(element_type, "11pt"),
                 "font_color": style_profile.colors.get(element_type, "#000000")
             }]
@@ -190,7 +211,7 @@ class DocumentStyleTool(BaseTool):
             
             # Get style profile and language rules
             style_profile = self.STYLE_PROFILES.get(style_profile_name, self.STYLE_PROFILES["professional"])
-            language_rules = self.LANGUAGE_RULES.get(target_language.lower(), self.LANGUAGE_RULES["english"])
+            language_rules = self._get_language_style_rules(target_language)
             
             # Process each element type
             styled_elements = {}
@@ -203,7 +224,7 @@ class DocumentStyleTool(BaseTool):
             }
             
             # Style document title
-            if "title" in document_elements:
+            if "title" in document_elements and document_elements["title"] is not None:
                 styled_elements["title"] = self._apply_style_profile(
                     "document_title", document_elements["title"], style_profile, language_rules
                 )
@@ -260,10 +281,11 @@ class DocumentStyleTool(BaseTool):
             styled_elements["tables"] = []
             if "tables" in document_elements:
                 for table in document_elements["tables"]:
-                    # Tables don't need style profile application, just pass through with structure
-                    styled_table = table.copy()
-                    styled_table["table_styled"] = True
-                    styled_elements["tables"].append(styled_table)
+                    if table is not None:
+                        # Tables don't need style profile application, just pass through with structure
+                        styled_table = table.copy()
+                        styled_table["table_styled"] = True
+                        styled_elements["tables"].append(styled_table)
                 elements_styled_count["tables"] = len(styled_elements["tables"])
             
             # Create styled content output
@@ -280,9 +302,12 @@ class DocumentStyleTool(BaseTool):
                     "styling_completed_at": datetime.now().isoformat()
                 },
                 "language_adaptations": {
-                    "writing_direction": language_rules["writing_direction"],
-                    "preferred_fonts": language_rules["preferred_fonts"],
-                    "text_alignment_default": language_rules["text_alignment_default"]
+                    "writing_direction": "ltr",
+                    "primary_font": language_rules["primary_font"],
+                    "font_stack": language_rules["preferred_fonts"],
+                    "text_alignment_default": language_rules["text_alignment_default"],
+                    "header_alignment": language_rules["header_alignment"],
+                    "spacing_adjustments": language_rules["spacing_adjustments"]
                 },
                 "styled_elements": styled_elements
             }
@@ -298,9 +323,11 @@ class DocumentStyleTool(BaseTool):
                 "elements_styled": elements_styled_count,
                 "style_rules_applied": list(style_profile.font_sizes.keys()),
                 "formatting_consistency": {
-                    "font_families_used": language_rules["preferred_fonts"],
+                    "primary_font": language_rules["primary_font"],
+                    "font_stack": language_rules["preferred_fonts"],
+                    "writing_direction": language_rules["writing_direction"],
                     "color_scheme": list(style_profile.colors.values()),
-                    "alignment_types": list(set(style_profile.alignments.values()))
+                    "alignment_types": [language_rules["text_alignment_default"], language_rules["header_alignment"]]
                 }
             }
             
@@ -321,10 +348,13 @@ class DocumentStyleTool(BaseTool):
                     "tables": styled_elements.get("tables", [])
                 },
                 "style_specifications": {
-                    "fonts": style_profile.font_families,
+                    "primary_font": language_rules["primary_font"],
+                    "font_stack": language_rules["preferred_fonts"],
+                    "font_families": style_profile.font_families,
                     "colors": style_profile.colors,
                     "alignments": style_profile.alignments,
-                    "spacing": style_profile.spacing
+                    "spacing": style_profile.spacing,
+                    "writing_direction": "ltr"
                 }
             }
             
@@ -352,7 +382,7 @@ class DocumentStyleTool(BaseTool):
             })
             
             total_styled = sum(elements_styled_count.values())
-            return f"Style analysis and adaptation completed successfully. Styled {total_styled} elements using '{style_profile.name}' profile for {target_language}. Language direction: {language_rules['writing_direction']}. Files saved: styled_content, style_summary, output_agent_input."
+            return f"Style analysis and adaptation completed successfully. Styled {total_styled} elements using '{style_profile.name}' profile for {target_language}. Files saved: styled_content, style_summary, output_agent_input."
             
         except Exception as e:
             return f"Error in style processing: {str(e)}"
@@ -376,8 +406,8 @@ def create_style_agent() -> Agent:
         role='Document Style Specialist',
         goal='Analyze and adapt document formatting for target language requirements while maintaining visual consistency and readability',
         backstory="""You are an expert in document formatting and cross-language typography. 
-        You understand how different languages require different formatting approaches, 
-        from RTL languages like Arabic to character-based languages like Chinese. 
+        You understand how different LTR languages require different formatting approaches, 
+        from character-based languages like Chinese to Latin script languages. 
         Your expertise includes font selection, spacing optimization, color schemes, 
         and maintaining professional document appearance across language barriers.""",
         tools=[style_tool],
@@ -397,7 +427,7 @@ def create_style_task(agent: Agent, session_id: str, style_profile: str = "profe
         1. Load the translation output from the Translation Agent
         2. Analyze the original document's formatting patterns
         3. Apply appropriate style profile ({style_profile}) for the target language
-        4. Adapt formatting for language-specific requirements (RTL/LTR, fonts, spacing)
+        4. Adapt formatting for language-specific requirements (fonts, spacing)
         5. Ensure visual consistency and professional appearance
         6. Generate styled content ready for document generation
         

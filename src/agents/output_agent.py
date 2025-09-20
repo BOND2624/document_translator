@@ -87,7 +87,10 @@ class DocumentOutputTool(BaseTool):
     def _apply_run_formatting(self, run, run_data: Dict[str, Any], default_font: str = "Arial"):
         """Apply formatting to a text run"""
         run.text = run_data.get("text", "")
-        
+        self._apply_run_formatting_without_text(run, run_data, default_font)
+    
+    def _apply_run_formatting_without_text(self, run, run_data: Dict[str, Any], default_font: str = "Arial"):
+        """Apply formatting to a text run without setting text"""
         # Font formatting
         run.font.name = run_data.get("font_name", default_font)
         run.font.bold = run_data.get("bold", False)
@@ -122,6 +125,7 @@ class DocumentOutputTool(BaseTool):
         alignment = formatting.get("alignment", "left")
         paragraph.alignment = self._get_alignment(alignment)
         
+        
         # Set spacing
         spacing_str = formatting.get("spacing", "6pt after")
         spacing = self._parse_spacing(spacing_str)
@@ -133,16 +137,31 @@ class DocumentOutputTool(BaseTool):
         
         # Add text runs with formatting
         runs = formatting.get("runs", [])
-        if runs:
+        translated_text = element.get("translated_text", element.get("original_text", ""))
+        
+        if runs and len(runs) > 1:
+            # Multiple runs - need to split translated text appropriately
+            # For now, use the complete translated text with formatting from first run
+            run = paragraph.add_run(translated_text)
+            
+            # Apply formatting from the most significant run (usually the first one with special formatting)
+            primary_run = runs[0]
             for run_data in runs:
-                run = paragraph.add_run()
-                self._apply_run_formatting(run, run_data, 
-                                         style_profile.get("font_families", ["Arial"])[0])
+                if run_data.get("bold", False) or run_data.get("italic", False) or run_data.get("font_color", "Default") != "Default":
+                    primary_run = run_data
+                    break
+            
+            self._apply_run_formatting_without_text(run, primary_run,
+                                                  style_profile.get("font_families", ["Arial"])[0])
+        elif runs:
+            # Single run - use translated text with original formatting
+            run = paragraph.add_run(translated_text)
+            self._apply_run_formatting_without_text(run, runs[0],
+                                                  style_profile.get("font_families", ["Arial"])[0])
         else:
             # No runs, add text directly
-            text = element.get("translated_text", element.get("original_text", ""))
-            if text:
-                run = paragraph.add_run(text)
+            if translated_text:
+                run = paragraph.add_run(translated_text)
                 # Apply default formatting
                 semantic_type = element.get("semantic_type", "body_text")
                 font_family = style_profile.get("font_families", ["Arial"])[0]
@@ -161,7 +180,8 @@ class DocumentOutputTool(BaseTool):
                     run.font.size = Pt(11)
                     run.font.color.rgb = self._hex_to_rgb("#1a1a1a")
     
-    def _add_table_with_formatting(self, doc: Document, table_data: Dict[str, Any]) -> None:
+    def _add_table_with_formatting(self, doc: Document, table_data: Dict[str, Any], 
+                                   style_profile: Dict[str, Any]) -> None:
         """Add a table with proper formatting"""
         
         # Get the table structure from styled content
@@ -193,16 +213,16 @@ class DocumentOutputTool(BaseTool):
                     cell_text = cell_data.get("text", "")
                     cell.text = str(cell_text)
                     
-                    # Format first row as header
-                    if row_idx == 0:
-                        for paragraph in cell.paragraphs:
+                    # Format cell paragraphs
+                    for paragraph in cell.paragraphs:
+                        # Format first row as header
+                        if row_idx == 0:
                             for run in paragraph.runs:
                                 run.font.bold = True
                                 run.font.color.rgb = RGBColor(0, 0, 0)
                                 run.font.size = Pt(10)
-                    else:
-                        # Format data rows
-                        for paragraph in cell.paragraphs:
+                        else:
+                            # Format data rows
                             for run in paragraph.runs:
                                 run.font.size = Pt(9)
         
@@ -262,7 +282,7 @@ class DocumentOutputTool(BaseTool):
         # Add elements to document in correct order
         for element in all_elements:
             if element.get("element_type") == "table":
-                self._add_table_with_formatting(doc, element)
+                self._add_table_with_formatting(doc, element, style_profile)
             else:
                 self._add_paragraph_with_formatting(doc, element, style_profile)
         
@@ -406,7 +426,7 @@ def create_output_agent() -> Agent:
         goal='Generate professional DOCX documents from styled content while preserving formatting, structure, and language-specific requirements',
         backstory="""You are an expert in document generation and formatting. 
         You specialize in creating professional Word documents that maintain visual consistency, 
-        proper typography, and language-appropriate formatting. Your expertise includes 
+        proper typography, and language-appropriate formatting for LTR languages. Your expertise includes 
         handling complex document structures, multi-language text rendering, 
         and ensuring that translated content appears professional and polished.""",
         tools=[output_tool],
@@ -426,7 +446,7 @@ def create_output_task(agent: Agent, session_id: str, output_filename: Optional[
         1. Load the styled content from the Style Agent output
         2. Create a properly formatted Word document with all styling applied
         3. Preserve document structure and semantic hierarchy  
-        4. Apply language-specific formatting requirements
+        4. Apply LTR language-specific formatting requirements
         5. Ensure professional appearance and readability
         6. Generate document statistics and quality metrics
         7. Prepare input for the QA Agent
