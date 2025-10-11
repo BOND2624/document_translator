@@ -14,7 +14,6 @@ from crewai import Agent, Task, Crew, Process
 from crewai_tools import BaseTool
 from pydantic import BaseModel, Field
 from typing import ClassVar
-from langchain_openai import AzureChatOpenAI
 
 from ..utils.file_manager import DocumentFileManager
 from ..config import FontConfig
@@ -388,33 +387,30 @@ class DocumentStyleTool(BaseTool):
             return f"Error in style processing: {str(e)}"
 
 
-def create_style_agent() -> Agent:
+def create_style_agent(llm=None) -> Agent:
     """Create the Style Agent with proper configuration"""
-    
-    # Create Azure OpenAI LLM
-    azure_llm = AzureChatOpenAI(
-        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
-        azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
-        temperature=0.1
-    )
     
     style_tool = DocumentStyleTool()
     
-    return Agent(
-        role='Document Style Specialist',
-        goal='Analyze and adapt document formatting for target language requirements while maintaining visual consistency and readability',
-        backstory="""You are an expert in document formatting and cross-language typography. 
+    # Create agent configuration
+    agent_config = {
+        "role": 'Document Style Specialist',
+        "goal": 'Analyze and adapt document formatting for target language requirements while maintaining visual consistency and readability',
+        "backstory": """You are an expert in document formatting and cross-language typography. 
         You understand how different LTR languages require different formatting approaches, 
         from character-based languages like Chinese to Latin script languages. 
         Your expertise includes font selection, spacing optimization, color schemes, 
         and maintaining professional document appearance across language barriers.""",
-        tools=[style_tool],
-        llm=azure_llm,
-        verbose=True,
-        allow_delegation=False
-    )
+        "tools": [style_tool],
+        "verbose": True,
+        "allow_delegation": False
+    }
+    
+    # Add LLM only if provided
+    if llm is not None:
+        agent_config["llm"] = llm
+    
+    return Agent(**agent_config)
 
 
 def create_style_task(agent: Agent, session_id: str, style_profile: str = "professional") -> Task:
@@ -448,8 +444,10 @@ def create_style_task(agent: Agent, session_id: str, style_profile: str = "profe
 def run_style_agent(session_id: str, style_profile: str = "professional") -> str:
     """Run the Style Agent workflow"""
     
-    # Create agent and task
-    style_agent = create_style_agent()
+    # Create LLM and agent with it
+    from ..config import Config
+    llm = Config.create_llm()
+    style_agent = create_style_agent(llm=llm)
     style_task = create_style_task(style_agent, session_id, style_profile)
     
     # Create and run crew

@@ -13,7 +13,6 @@ from crewai import Agent, Task, Crew, Process
 from crewai_tools import BaseTool
 from pydantic import BaseModel, Field
 from typing import ClassVar
-from langchain_openai import AzureChatOpenAI
 
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
@@ -407,33 +406,30 @@ class DocumentOutputTool(BaseTool):
             return f"Error in document generation: {str(e)}"
 
 
-def create_output_agent() -> Agent:
+def create_output_agent(llm=None) -> Agent:
     """Create the Output Agent with proper configuration"""
-    
-    # Create Azure OpenAI LLM
-    azure_llm = AzureChatOpenAI(
-        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
-        azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
-        temperature=0.1
-    )
     
     output_tool = DocumentOutputTool()
     
-    return Agent(
-        role='Document Generation Specialist',
-        goal='Generate professional DOCX documents from styled content while preserving formatting, structure, and language-specific requirements',
-        backstory="""You are an expert in document generation and formatting. 
+    # Create agent configuration
+    agent_config = {
+        "role": 'Document Generation Specialist',
+        "goal": 'Generate professional DOCX documents from styled content while preserving formatting, structure, and language-specific requirements',
+        "backstory": """You are an expert in document generation and formatting. 
         You specialize in creating professional Word documents that maintain visual consistency, 
         proper typography, and language-appropriate formatting for LTR languages. Your expertise includes 
         handling complex document structures, multi-language text rendering, 
         and ensuring that translated content appears professional and polished.""",
-        tools=[output_tool],
-        llm=azure_llm,
-        verbose=True,
-        allow_delegation=False
-    )
+        "tools": [output_tool],
+        "verbose": True,
+        "allow_delegation": False
+    }
+    
+    # Add LLM only if provided
+    if llm is not None:
+        agent_config["llm"] = llm
+    
+    return Agent(**agent_config)
 
 
 def create_output_task(agent: Agent, session_id: str, output_filename: Optional[str] = None) -> Task:
@@ -469,8 +465,10 @@ def create_output_task(agent: Agent, session_id: str, output_filename: Optional[
 def run_output_agent(session_id: str, output_filename: Optional[str] = None) -> str:
     """Run the Output Agent workflow"""
     
-    # Create agent and task
-    output_agent = create_output_agent()
+    # Create LLM and agent with it
+    from ..config import Config
+    llm = Config.create_llm()
+    output_agent = create_output_agent(llm=llm)
     output_task = create_output_task(output_agent, session_id, output_filename)
     
     # Create and run crew

@@ -273,17 +273,10 @@ class DocumentTranslationTool(BaseTool):
         to translate any text from any source language to any target language.
         """
         try:
-            import os
-            from langchain_openai import AzureChatOpenAI
+            from ..config import Config
             
-            # Create Azure OpenAI client
-            llm = AzureChatOpenAI(
-                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-                api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-                api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
-                azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
-                temperature=0.1
-            )
+            # Create LLM client using the configured provider
+            llm = Config.create_llm()
             
             # Create style-specific translation prompts
             style_instructions = {

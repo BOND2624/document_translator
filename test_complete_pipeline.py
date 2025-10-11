@@ -10,8 +10,9 @@ from dotenv import load_dotenv
 import time
 import json
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from multiple possible locations
+load_dotenv('.env')  # Load from .env first
+load_dotenv('config.env')  # Then load from config.env if it exists
 
 # Add the project root to the Python path
 current_dir = Path(__file__).parent
@@ -158,12 +159,60 @@ def run_translation_step(session_id: str, target_language: str = "Spanish"):
         return f"Error in translation: {str(e)}"
 
 
+def get_llm_provider():
+    """Select LLM provider"""
+    print("\n🤖 SELECT LLM PROVIDER")
+    print("Choose your preferred translation provider:")
+    print("1. 🆓 Groq (FREE) - Fast Llama models (Recommended)")
+    print("2. 🆓 OpenRouter (FREE) - Free tier models") 
+    print("3. 💰 Azure OpenAI (PAID) - Premium GPT models")
+    
+    choice = input("\nEnter choice (1-3) [default: 1]: ").strip()
+    
+    providers = {
+        '1': 'groq',
+        '2': 'openrouter', 
+        '3': 'azure',
+        '': 'groq'  # default
+    }
+    
+    selected = providers.get(choice, 'groq')
+    provider_info = Config.AVAILABLE_PROVIDERS[selected]
+    
+    print(f"\n✅ Selected: {provider_info['name']} ({provider_info['cost']})")
+    print(f"📝 {provider_info['description']}")
+    
+    # Set the provider in environment for this session
+    os.environ['LLM_PROVIDER'] = selected
+    
+    return selected
+
+
 def run_complete_pipeline():
     """Run the complete document translation pipeline"""
     
     print_separator("COMPLETE DOCUMENT TRANSLATION PIPELINE")
     print("🎯 Target: test_document_comprehensive.docx → Multi-Language Translation")
     print("🔄 Pipeline: Parser → Translation → Style → Output")
+    
+    # Select LLM provider
+    provider = get_llm_provider()
+    
+    # Validate configuration
+    if not Config.validate():
+        provider_info = Config.get_provider_info()
+        print(f"\n❌ Configuration Error: Missing API key for {provider_info['name']}")
+        print(f"💡 Please get your FREE API key and add it to config.env:")
+        
+        if provider == 'groq':
+            print("   🔗 Groq: https://console.groq.com/keys")
+        elif provider == 'openrouter':
+            print("   🔗 OpenRouter: https://openrouter.ai/keys")
+        elif provider == 'azure':
+            print("   🔗 Azure OpenAI: Azure Portal")
+            
+        print(f"   📝 Then update config.env with your API key")
+        return None
     
     # Get target language from user
     target_language = get_target_language()
@@ -172,6 +221,8 @@ def run_complete_pipeline():
         return None
     
     print_separator("PIPELINE CONFIGURATION")
+    provider_info = Config.get_provider_info()
+    print(f"🤖 LLM Provider: {provider_info['name']} ({provider_info['cost']})")
     print(f"📄 Input Document: test_document_comprehensive.docx")
     print(f"🌐 Source Language: English")
     print(f"🎯 Target Language: {target_language}")
