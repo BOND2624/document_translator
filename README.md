@@ -4,7 +4,7 @@ A multi-agent AI pipeline for translating Word documents while preserving format
 
 ## Features
 
-- **Multi-Language Support**: Translate to 10+ languages including RTL languages (Hebrew, Arabic, Urdu)
+- **Multi-Language Support**: Translate to 10+ languages 
 - **Format Preservation**: Maintains original document structure, tables, headers, and styling
 - **Professional Output**: Applies language-specific fonts and formatting rules
 - **Azure OpenAI Integration**: Powered by GPT-4 for high-quality translations
@@ -37,7 +37,7 @@ A multi-agent AI pipeline for translating Word documents while preserving format
 
 ## Supported Languages
 
-English, Spanish, French, German, Italian, Portuguese, Chinese, Japanese, Korean, Russian, Arabic, Hebrew, Urdu + custom languages
+English, Spanish, French, German, Italian, Portuguese, Chinese, Japanese, Korean, Russian  +
 
 ## Requirements
 
